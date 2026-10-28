@@ -92,7 +92,7 @@ const products = [
             "Compatible with MX-style switches",
             "Anti-shine coating for long-lasting feel"
         ],
-        image: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=600&h=400&fit=crop",
+        image: "cyberwave-keycaps.jpg",
         badge: "new",
         inStock: true
     },
@@ -115,7 +115,7 @@ const products = [
             "Water-resistant surface coating",
             "Machine washable"
         ],
-        image: "https://images.unsplash.com/photo-1616588589676-62b3d4320f78?w=600&h=400&fit=crop",
+        image: "kanagawa-deskmat.jpg",
         badge: "sale",
         inStock: true
     },
@@ -161,7 +161,7 @@ const products = [
             "35 switches per pack",
             "Clear housing for RGB transparency"
         ],
-        image: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=600&h=400&fit=crop",
+        image: "magnetic-switches.jpg",
         badge: "popular",
         inStock: true
     },
@@ -184,7 +184,7 @@ const products = [
             "Hand-coiled and heat-set",
             "Available in 12 color combinations"
         ],
-        image: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=600&h=400&fit=crop&q=80",
+        image: "coiled-cable.jpg",
         badge: "sale",
         inStock: true
     },
@@ -230,7 +230,7 @@ const products = [
             "Kailh GM 8.0 switches",
             "80-hour battery life"
         ],
-        image: "https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=600&h=400&fit=crop",
+        image: "velocity-mouse.jpg",
         badge: null,
         inStock: true
     },
@@ -276,7 +276,7 @@ const products = [
             "Natural rubber anti-slip base",
             "Smooth micro-cloth surface"
         ],
-        image: "https://images.unsplash.com/photo-1618384887929-16ec33fab9ef?w=600&h=400&fit=crop&q=70",
+        image: "galaxy-deskmat.jpg",
         badge: "sale",
         inStock: true
     }
@@ -284,7 +284,8 @@ const products = [
 
 // ---- State ----
 let cart = [];
-let currentPage = 'home';
+let currentPage = 'landing';
+let previousPage = 'landing';
 let selectedPayment = null;
 let qrTimerInterval = null;
 let otpTimerInterval = null;
@@ -293,18 +294,42 @@ let shippingData = {};
 
 // ---- Init ----
 document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
     loadCart();
     renderProducts();
+    renderFeaturedProducts();
     updateCartCount();
+    createHeroParticles();
+    animateStatsOnScroll();
+    
+    // Check initial hash or default to landing
+    const hash = window.location.hash.replace('#', '');
+    if (hash && document.getElementById(`page-${hash}`)) {
+        navigateTo(hash, false);
+    } else {
+        navigateTo('landing', false);
+    }
 });
 
 // ---- Navigation ----
-function navigateTo(page) {
+function navigateTo(page, pushHistory = true) {
+    if (!page || page === 'home') page = 'landing';
+    
+    // Remember previous page for Back button
+    if (currentPage && currentPage !== page && currentPage !== 'product') {
+        previousPage = currentPage;
+    }
+    
     // Hide all pages
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     
-    // Show target page
-    const targetPage = document.getElementById(`page-${page}`);
+    // Show target page with bulletproof fallback so blank white page NEVER occurs
+    let targetPage = document.getElementById(`page-${page}`);
+    if (!targetPage) {
+        targetPage = document.getElementById('page-landing') || document.getElementById('page-shop');
+        page = targetPage ? targetPage.id.replace('page-', '') : 'landing';
+    }
+    
     if (targetPage) {
         targetPage.classList.add('active');
         currentPage = page;
@@ -313,8 +338,24 @@ function navigateTo(page) {
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
     
+    // Toggle category nav visibility (show on shop, hide on landing/detail)
+    const catNav = document.getElementById('categoryNav');
+    if (catNav) {
+        catNav.style.display = (page === 'shop') ? '' : 'none';
+    }
+    
+    // History support for browser back/forward buttons
+    if (pushHistory && window.history && window.history.pushState) {
+        try {
+            window.history.pushState({ page: page }, '', '#' + page);
+        } catch (e) {}
+    }
+    
     // Page-specific rendering
     switch(page) {
+        case 'shop':
+            renderProducts();
+            break;
         case 'cart':
             renderCart();
             break;
@@ -327,6 +368,55 @@ function navigateTo(page) {
         case 'otp':
             renderOtpPage();
             break;
+    }
+}
+
+// Back button handler: returns to previous page, or landing
+function navigateBack() {
+    if (previousPage && previousPage !== currentPage && previousPage !== 'product') {
+        navigateTo(previousPage);
+    } else {
+        navigateTo('landing');
+    }
+}
+
+// Browser Back/Forward buttons handler
+window.addEventListener('popstate', (event) => {
+    if (event.state && event.state.page) {
+        navigateTo(event.state.page, false);
+    } else {
+        const hash = window.location.hash.replace('#', '');
+        if (hash && document.getElementById(`page-${hash}`)) {
+            navigateTo(hash, false);
+        } else {
+            navigateTo('landing', false);
+        }
+    }
+});
+
+// ---- Dark Mode ----
+function initTheme() {
+    const saved = localStorage.getItem('nexus_theme');
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const isDark = saved === 'dark' || (!saved && prefersDark);
+    applyTheme(isDark);
+}
+
+function toggleDarkMode() {
+    const isCurrentlyDark = document.body.classList.contains('dark-mode') || document.documentElement.getAttribute('data-theme') === 'dark';
+    const newTheme = !isCurrentlyDark;
+    applyTheme(newTheme);
+    localStorage.setItem('nexus_theme', newTheme ? 'dark' : 'light');
+    showToast(newTheme ? '🌙 Dark Mode Enabled' : '☀️ Light Mode Enabled', 'info');
+}
+
+function applyTheme(isDark) {
+    if (isDark) {
+        document.body.classList.add('dark-mode');
+        document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+        document.body.classList.remove('dark-mode');
+        document.documentElement.setAttribute('data-theme', 'light');
     }
 }
 
@@ -388,7 +478,10 @@ function filterCategory(category, btn) {
         renderProducts(filtered);
     }
     
-    navigateTo('home');
+    // Stay on shop page, don't navigate to landing
+    if (currentPage !== 'shop') {
+        navigateTo('shop');
+    }
 }
 
 // ---- Search ----
@@ -404,6 +497,10 @@ function handleSearch(query) {
         p.category.toLowerCase().includes(q)
     );
     renderProducts(filtered);
+    // Navigate to shop page to show search results
+    if (currentPage !== 'shop') {
+        navigateTo('shop');
+    }
 }
 
 // ---- Product Detail ----
@@ -414,9 +511,9 @@ function showProductDetail(id) {
     const detail = document.getElementById('productDetail');
     detail.innerHTML = `
         <div class="pd-image-section">
-            <div class="pd-back-btn" onclick="navigateTo('home')">
+            <div class="pd-back-btn" onclick="navigateBack()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-                Back to Products
+                Back
             </div>
             <div class="pd-main-image">
                 <img src="${product.image}" alt="${product.name}" onerror="this.parentElement.style.background='#f0ede8'">
@@ -586,7 +683,7 @@ function renderCart() {
                 </svg>
                 <h3>Your cart is empty</h3>
                 <p>Looks like you haven't added any products yet.</p>
-                <button class="btn-primary" onclick="navigateTo('home')">Start Shopping</button>
+                <button class="btn-primary" onclick="navigateTo('shop')">Start Shopping</button>
             </div>
         `;
         summary.innerHTML = '';
@@ -1192,7 +1289,7 @@ function formatExpiry(input) {
 function handleSignIn(event) {
     event.preventDefault();
     showToast('Sign-in successful! Welcome back!', 'success');
-    navigateTo('home');
+    navigateTo('landing');
 }
 
 // ---- Toast ----
@@ -1211,3 +1308,134 @@ function showToast(message, type = 'info') {
         toast.remove();
     }, 3000);
 }
+
+// ============================================
+// LANDING PAGE FUNCTIONS
+// ============================================
+
+// ---- Featured Products (top 4 by rating/popularity) ----
+function renderFeaturedProducts() {
+    const grid = document.getElementById('featuredProductsGrid');
+    if (!grid) return;
+    
+    // Pick top 4 products by reviews count (most popular)
+    const featured = [...products]
+        .sort((a, b) => b.reviews - a.reviews)
+        .slice(0, 4);
+    
+    grid.innerHTML = featured.map(product => `
+        <div class="product-card" onclick="showProductDetail(${product.id})">
+            <div class="product-card-img">
+                <img src="${product.image}" alt="${product.name}" loading="lazy" onerror="this.src='data:image/svg+xml,<svg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 600 400\\'><rect fill=\\'%23f0ede8\\' width=\\'600\\' height=\\'400\\'/><text x=\\'50%\\' y=\\'50%\\' text-anchor=\\'middle\\' fill=\\'%23999\\' font-size=\\'20\\'>${encodeURIComponent(product.shortName)}</text></svg>'">
+                ${product.badge ? `<span class="product-badge badge-${product.badge}">${getBadgeText(product.badge)}</span>` : ''}
+            </div>
+            <div class="product-card-body">
+                <div class="product-rating">
+                    <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    <span class="rating-score">${product.rating}</span>
+                    <span class="rating-count">(${product.reviews})</span>
+                </div>
+                <h3 class="product-card-title">${product.shortName}</h3>
+                <p class="product-card-desc">${product.description}</p>
+                <div class="product-card-price">
+                    <span class="price-current">₹${product.price.toLocaleString('en-IN')}</span>
+                    ${product.originalPrice ? `<span class="price-original">₹${product.originalPrice.toLocaleString('en-IN')}</span>` : ''}
+                    ${product.discount > 0 ? `<span class="price-discount">${product.discount}% OFF</span>` : ''}
+                </div>
+                <div class="product-card-actions">
+                    <button class="btn-add-cart" onclick="event.stopPropagation(); addToCart(${product.id})" ${!product.inStock ? 'disabled' : ''}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+                        ${product.inStock ? 'Add to Cart' : 'Out of Stock'}
+                    </button>
+                    <button class="btn-wishlist" onclick="event.stopPropagation(); showToast('Added to wishlist!', 'success')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ---- Hero Particles ----
+function createHeroParticles() {
+    const container = document.getElementById('heroParticles');
+    if (!container) return;
+    
+    for (let i = 0; i < 15; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'hero-particle';
+        particle.style.left = Math.random() * 100 + '%';
+        particle.style.top = (60 + Math.random() * 40) + '%';
+        particle.style.animationDelay = (Math.random() * 6) + 's';
+        particle.style.animationDuration = (4 + Math.random() * 4) + 's';
+        container.appendChild(particle);
+    }
+}
+
+// ---- Animated Stats Counter ----
+function animateStatsOnScroll() {
+    const statNumbers = document.querySelectorAll('.stat-number[data-target]');
+    if (!statNumbers.length) return;
+    
+    let animated = false;
+    
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting && !animated) {
+                animated = true;
+                statNumbers.forEach(el => {
+                    const target = parseFloat(el.dataset.target);
+                    const isDecimal = target % 1 !== 0;
+                    const duration = 2000;
+                    const startTime = performance.now();
+                    
+                    function updateCounter(currentTime) {
+                        const elapsed = currentTime - startTime;
+                        const progress = Math.min(elapsed / duration, 1);
+                        // Ease-out quad
+                        const eased = 1 - (1 - progress) * (1 - progress);
+                        const current = eased * target;
+                        
+                        if (isDecimal) {
+                            el.textContent = current.toFixed(1);
+                        } else {
+                            el.textContent = Math.floor(current).toLocaleString('en-IN');
+                        }
+                        
+                        if (progress < 1) {
+                            requestAnimationFrame(updateCounter);
+                        }
+                    }
+                    
+                    requestAnimationFrame(updateCounter);
+                });
+            }
+        });
+    }, { threshold: 0.3 });
+    
+    const statsBar = document.querySelector('.stats-bar');
+    if (statsBar) observer.observe(statsBar);
+}
+
+// ---- Newsletter Subscribe ----
+function subscribeNewsletter() {
+    const emailInput = document.getElementById('newsletterEmail');
+    if (!emailInput) return;
+    const email = emailInput.value.trim();
+    
+    if (!email || !email.includes('@')) {
+        showToast('Please enter a valid email address.', 'error');
+        return;
+    }
+    
+    emailInput.value = '';
+    showToast('🎉 Subscribed successfully! Welcome to the Nexus community.', 'success');
+}
+
+// ---- Hide category nav on landing page initially ----
+(function() {
+    const catNav = document.getElementById('categoryNav');
+    if (catNav && document.getElementById('page-landing')?.classList.contains('active')) {
+        catNav.style.display = 'none';
+    }
+})();
